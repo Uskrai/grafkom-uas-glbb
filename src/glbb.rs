@@ -32,11 +32,11 @@ pub struct HorizontalState {
 }
 
 fn calculate_distance(velocity: f64, acceleration: f64, time: f64) -> f64 {
-    velocity * time + (0.5) * -acceleration * (time * time)
+    velocity * time + (0.5) * acceleration * (time * time)
 }
 
 fn calculate_velocity(velocity: f64, acceleration: f64, time: f64) -> f64 {
-    velocity + -acceleration * time
+    velocity + acceleration * time
 }
 
 impl HorizontalState {
@@ -63,11 +63,11 @@ impl HorizontalState {
     }
 
     pub fn distance_at(&self, time: f64) -> f64 {
-        calculate_distance(self.velocity, self.acceleration, time)
+        calculate_distance(self.velocity, -self.acceleration, time)
     }
 
     pub fn velocity_at(&self, time: f64) -> f64 {
-        calculate_velocity(self.velocity, self.acceleration, time)
+        calculate_velocity(self.velocity, -self.acceleration, time)
     }
 
     pub fn mv(&mut self, pos: &mut f32, range: RangeInclusive<f32>) {
