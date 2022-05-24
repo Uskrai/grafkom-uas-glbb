@@ -73,6 +73,7 @@ impl HorizontalState {
     pub fn mv(&mut self, pos: &mut f32, range: RangeInclusive<f32>) {
         if let Some(mut direction) = self.play {
             let time = self.start.elapsed().min(self.duration).as_secs_f64();
+            self.velocity = self.velocity_at(time);
             let mut distance = self.distance_at(time);
 
             while distance > 0.0 {
@@ -85,7 +86,6 @@ impl HorizontalState {
                 }
             }
 
-            self.velocity = self.velocity_at(time);
             self.play = Some(direction);
 
             if self.start.elapsed() < self.duration {
@@ -103,12 +103,14 @@ pub struct VerticalState {
     #[serde(skip)]
     start: Now,
     pub is_drop: bool,
-    pub accel: f32,
+    pub accel: f64,
+    pub velocity: f64,
 }
 
 impl VerticalState {
     pub fn fall(&mut self) {
-        self.accel = 10.0;
+        self.accel = 800.0;
+        self.velocity = 0.0;
         self.play = true;
         self.is_drop = true;
         self.start.reset();
@@ -120,29 +122,29 @@ impl VerticalState {
 
     pub fn mv(&mut self, pos: &mut f32, _: f32) {
         if self.play {
-            print!("{:?} ", self.start.elapsed().as_secs_f64());
+            let time = self.start.elapsed().as_secs_f64();
+            let mut direction: f64 = if self.is_drop { -1.0 } else { 1.0 };
+            self.velocity = calculate_velocity(self.velocity, self.accel * direction as f64, time);
+            let mut distance = calculate_distance(self.velocity, self.accel * direction, time);
+            let new_distance = distance;
 
-            if self.is_drop {
-                self.accel += 9.8;
-                self.accel += self.accel * self.start.elapsed().as_secs_f32();
-                *pos -= self.accel;
+            while distance != 0.0 {
+                let move_by = distance.min(5.0);
+                distance -= move_by;
 
+                *pos -= (move_by as f32) * (direction as f32);
                 if *pos <= 0.0 {
-                    self.is_drop = false;
-                    *pos = 0.0;
-                }
-            } else {
-                self.accel -= 9.8;
-                self.accel -= self.accel * self.start.elapsed().as_secs_f32();
-                *pos += self.accel;
-
-                if self.accel <= 0.0 {
-                    self.is_drop = true;
+                    direction *= -1.0;
+                    self.velocity *= 0.8;
+                    break;
                 }
             }
+
+            self.is_drop = direction.is_sign_negative();
+
             self.start.reset();
 
-            if self.accel <= 0.0 && *pos <= 0.0 {
+            if new_distance.abs() <= 0.5 && pos.abs() <= 0.5 {
                 self.play = false;
             }
         }
