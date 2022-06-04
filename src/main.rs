@@ -1,11 +1,9 @@
-mod glbb;
-mod slider;
-pub use glbb::*;
+use glbb::slider;
+use glbb::GLBBState;
+use glbb::GLBBWidget;
 
 pub struct App {
-    context: Option<egui::Context>, // context used to request repaint
-    glbb: GLBBState,
-
+    glbb: glbb::GLBBState,
     size: egui::Vec2,
 }
 
@@ -14,47 +12,38 @@ impl App {
         Self {
             glbb: it
                 .storage
-                .map(|storage| storage.get_string("glbb").map(|it| ron::from_str(&it).ok()))
+                .map(|storage| {
+                    storage
+                        .get_string("glbb")
+                        .map(|it| ron::from_str(&it).ok())
+                })
                 .flatten()
                 .flatten()
                 .unwrap_or(GLBBState {
                     original_radius: 30.0,
                     ..Default::default()
                 }),
-
-            // glbb: GLBBState {
-            //
-            //     radius: 30.0,
-            //     ..Default::default()
-            // },
             size: egui::Vec2::ZERO,
-            context: None,
         }
-    }
-
-    pub fn request_repaint(&self) {
-        if let Some(ctx) = &self.context {
-            ctx.request_repaint();
-        }
-    }
-
-    pub fn context(&self) -> egui::Context {
-        self.context
-            .clone()
-            .expect("Can't call this before egui start")
     }
 }
 
 impl eframe::App for App {
     fn save(&mut self, _storage: &mut dyn eframe::Storage) {
-        _storage.set_string("glbb", ron::to_string(&self.glbb).unwrap())
+        _storage.set_string(
+            "glbb",
+            ron::to_string(&self.glbb).unwrap(),
+        )
     }
 
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn update(
+        &mut self,
+        ctx: &egui::Context,
+        _frame: &mut eframe::Frame,
+    ) {
         ctx.set_visuals(egui::Visuals::dark());
 
         let enabled = true;
-        self.glbb.original_radius = 180.0;
 
         egui::SidePanel::right("right-panel")
             .default_width(15.0)
@@ -62,98 +51,143 @@ impl eframe::App for App {
             .resizable(false)
             .show(ctx, |ui| {
                 ui.set_enabled(enabled);
-                ui.with_layout(egui::Layout::bottom_up(egui::Align::TOP), |ui| {
-                    if ui.button("V").clicked() {
-                        self.glbb.pos.y -= 100.0;
-                    }
+                ui.with_layout(
+                    egui::Layout::bottom_up(
+                        egui::Align::TOP,
+                    ),
+                    |ui| {
+                        if ui.button("V").clicked() {
+                            self.glbb.pos.y -= 100.0;
+                        }
 
-                    if ui.button("V\nV").clicked() {
-                        self.glbb.vertical.fall();
-                    }
+                        if ui.button("V\nV").clicked() {
+                            self.glbb.vertical.fall();
+                        }
 
-                    let max = self.glbb.pos_y_max();
+                        let max = self.glbb.pos_y_max();
 
-                    ui.add(slider::Slider::new(&mut self.glbb.pos.y, 0f32..=max).vertical());
-                });
-            });
-
-        egui::TopBottomPanel::bottom("bottom-panel").show(ctx, |ui| {
-            let max = self.glbb.pos_x_max();
-            ui.add_enabled_ui(enabled, |ui| {
-                ui.add_sized(
-                    [ui.available_width(), 20.0],
-                    slider::Slider::new(&mut self.glbb.pos.x, 0f32..=max),
+                        ui.add(
+                            slider::Slider::new(
+                                &mut self.glbb.pos.y,
+                                0f32..=max,
+                            )
+                            .vertical(),
+                        );
+                    },
                 );
             });
 
-            ui.horizontal(|ui| {
-                let height = 20.0;
-                let width = ui.available_width() - (ui.spacing().item_spacing.x * 5.0);
-                let enabled = !self.glbb.horizontal.is_play();
-
+        egui::TopBottomPanel::bottom("bottom-panel").show(
+            ctx,
+            |ui| {
+                let max = self.glbb.pos_x_max();
                 ui.add_enabled_ui(enabled, |ui| {
-                    ui.set_enabled(enabled);
-
-                    if ui
-                        .add_sized([width * 0.1, height], egui::Button::new("<<"))
-                        .clicked()
-                    {
-                        self.glbb.horizontal.play_left();
-                    }
-
-                    if ui
-                        .add_sized([width * 0.1, height], egui::Button::new("<"))
-                        .clicked()
-                    {
-                        self.glbb.pos.x -= 100.0;
-                    }
-
                     ui.add_sized(
-                        [width * 0.2, height],
-                        egui::DragValue::new(&mut self.glbb.horizontal.velocity)
+                        [ui.available_width(), 20.0],
+                        slider::Slider::new(
+                            &mut self.glbb.pos.x,
+                            0f32..=max,
+                        ),
+                    );
+                });
+
+                ui.horizontal(|ui| {
+                    let height = 20.0;
+                    let width = ui.available_width()
+                        - (ui.spacing().item_spacing.x
+                            * 5.0);
+                    let enabled =
+                        !self.glbb.horizontal.is_play();
+
+                    ui.add_enabled_ui(enabled, |ui| {
+                        ui.set_enabled(enabled);
+
+                        if ui
+                            .add_sized(
+                                [width * 0.1, height],
+                                egui::Button::new("<<"),
+                            )
+                            .clicked()
+                        {
+                            self.glbb
+                                .horizontal
+                                .play_left();
+                        }
+
+                        if ui
+                            .add_sized(
+                                [width * 0.1, height],
+                                egui::Button::new("<"),
+                            )
+                            .clicked()
+                        {
+                            self.glbb.pos.x -= 100.0;
+                        }
+
+                        ui.add_sized(
+                            [width * 0.2, height],
+                            egui::DragValue::new(
+                                &mut self
+                                    .glbb
+                                    .horizontal
+                                    .velocity,
+                            )
                             .prefix("velocity: ")
                             .suffix(" m/s")
                             .clamp_range(0f32..=f32::MAX),
-                    );
-                });
+                        );
+                    });
 
-                if ui
-                    .add_sized([width * 0.2, height], egui::Button::new("| |"))
-                    .clicked()
-                {
-                    self.glbb.horizontal.stop();
-                    self.glbb.vertical.stop();
-                }
+                    if ui
+                        .add_sized(
+                            [width * 0.2, height],
+                            egui::Button::new("| |"),
+                        )
+                        .clicked()
+                    {
+                        self.glbb.horizontal.stop();
+                        self.glbb.vertical.stop();
+                    }
 
-                ui.add_enabled_ui(enabled, |ui| {
-                    ui.add_sized(
-                        [width * 0.2, height],
-                        egui::DragValue::new(&mut self.glbb.horizontal.acceleration)
+                    ui.add_enabled_ui(enabled, |ui| {
+                        ui.add_sized(
+                            [width * 0.2, height],
+                            egui::DragValue::new(
+                                &mut self
+                                    .glbb
+                                    .horizontal
+                                    .acceleration,
+                            )
                             .prefix("acceleration: ")
                             .suffix(" m/s²")
                             .clamp_range(1f32..=f32::MAX),
-                    );
+                        );
 
-                    if ui
-                        .add_sized([width * 0.1, height], egui::Button::new(">"))
-                        .clicked()
-                    {
-                        self.glbb.pos.x += 100.0;
-                    }
+                        if ui
+                            .add_sized(
+                                [width * 0.1, height],
+                                egui::Button::new(">"),
+                            )
+                            .clicked()
+                        {
+                            self.glbb.pos.x += 100.0;
+                        }
 
-                    if ui
-                        .add_sized([width * 0.1, height], egui::Button::new(">>"))
-                        .clicked()
-                    {
-                        self.glbb.horizontal.play_right();
-                    }
-                });
-            })
-        });
-
-        egui::Area::new("texture").show(ctx, |ui| {
-            ctx.texture_ui(ui);
-        });
+                        if ui
+                            .add_sized(
+                                [width * 0.1, height],
+                                egui::Button::new(">>"),
+                            )
+                            .clicked()
+                        {
+                            self.glbb
+                                .horizontal
+                                .play_right();
+                        }
+                    });
+                })
+            },
+        );
 
         let response = egui::CentralPanel::default().show(ctx, |ui| {
             // make GLBBWidget expand to minimum available size.
@@ -192,17 +226,6 @@ impl eframe::App for App {
         });
 
         self.size = response.response.rect.size();
-
-        // egui::Window::new("Values").show(ctx, |ui| {
-        //     egui::Grid::new("grid")
-        //         .striped(true)
-        //         .num_columns(2)
-        //         .show(ui, |ui| {
-        //             // ui
-        //             // ui.label("
-        //             //
-        //         });
-        // });
     }
 }
 
